@@ -4,19 +4,19 @@
 crsp <- read.csv("data/crsp.csv", header=TRUE)
 
 # separate YYYYMMDD dates into years, months and days
-crsp$year <- as.numeric(substr(as.character(crsp$date), 1, 4))
-crsp$month <- as.numeric(substr(as.character(crsp$date), 5, 6))
-crsp$day <- as.numeric(substr(as.character(crsp$date), 7, 8))
-crsp$date <- NULL
+crsp$year <- as.numeric(substr(as.character(crsp$DATE), 1, 4))
+crsp$month <- as.numeric(substr(as.character(crsp$DATE), 5, 6))
+crsp$day <- as.numeric(substr(as.character(crsp$DATE), 7, 8))
+crsp$DATE <- NULL
 
 # keep only stocks listed on NYSE (1), AMEX (2) or NASDAQ (3)
-crsp <- crsp[crsp$EXCHCD >= 1 & crsp$EXCHCD <= 3 & !is.na(crsp$EXCHCD),]
+crsp <- crsp[crsp$EXCHCD >= 1 & crsp$EXCHCD <= 3,]
 
 # keep only ordinary stocks (share code 11)
-crsp <- crsp[crsp$SHRCD == 11 & !is.na(crsp$SHRCD),]
+crsp <- crsp[crsp$SHRCD == 11,]
 
 # keep only non-financial stocks
-crsp <- crsp[(crsp$SICCD < 6000 | crsp$SICCD > 6999) & !is.na(crsp$SICCD),]
+crsp <- crsp[crsp$SICCD < 6000 | crsp$SICCD > 6999,]
 
 # remove any duplicate observations for a given stock in a given month
 crsp <- crsp[!duplicated(crsp[, c("month", "year", "PERMNO")]),]
@@ -47,19 +47,19 @@ crsp$SICCD <- NULL
 # remove observations with missing returns
 crsp <- crsp[!is.na(crsp$RET) & !is.na(crsp$RETX),]
 
-# calculate portfolio dates
+# calculate portfolio datescrsp
 crsp$pyear <- ifelse(crsp$month < 7, crsp$year - 1, crsp$year)
 crsp$pmonth <- ifelse(crsp$month < 7, crsp$month + 6, crsp$month - 6)
 
 # calculate market capitalization
 ## june only
 junes <- crsp$month == 6
-size <- data.frame(PERMNO=crsp$PERMNO[junes], pyear=crsp$year[junes], mktcap=(crsp$SHROUT[junes] * abs(crsp$PRC[junes])))
+size <- data.frame(PERMNO=crsp$PERMNO[junes], pyear=crsp$year[junes], EXCHCD=crsp$EXCHCD[junes], mktcap=(crsp$SHROUT[junes] * abs(crsp$PRC[junes])))
 crsp <- merge(crsp, size, by=c("PERMNO", "pyear"))
 
 # sort the cleaned data and remove unused variables
 crsp.clean <- crsp[order(crsp$PERMNO, crsp$year, crsp$month),]
-rm(crsp, size, junes)
+rm(crsp, junes)
 
 # calculate lagged monthly market cap
 crsp.clean$lagmktcap <- c(NA, (crsp.clean$SHROUT * abs(crsp.clean$PRC))[-nrow(crsp.clean)])
@@ -73,20 +73,16 @@ trailing.compound.return <- function(ret, from, to) {
     # take advantage of cumsum to greatly speed up calculations
     cum.ret <- cumsum(log(1 + ret))
     compound.ret <- vector(mode="numeric", length=nper)
-    if (nper > from) {
-        compound.ret[1:from] <- NA
-        compound.ret[from + 1] <- cum.ret[from - to + 1]
-        # use indexing to subtract cumulative sums rather than looping
-        compound.ret[(from + 2):nper] <- cum.ret[(from - to + 2):(nper - to)] - cum.ret[1:(nper - from - 1)]
-    } else {
-        compound.ret <- NA
-    }
+    compound.ret[1:from] <- NA
+    compound.ret[from + 1] <- cum.ret[from - to + 1]
+    # use indexing to subtract cumulative sums rather than looping
+    compound.ret[(from + 2):nper] <- cum.ret[(from - to + 2):(nper - to)] - cum.ret[1:(nper - from - 1)]
     return (exp(compound.ret) - 1)
 }
 
 # calculate compound momentum and reversal returns
 tic <- proc.time()
-for (i in 1:nstock) {
+for (i in stocks) {
     s <- stocks[i]
     print(paste(round(i / nstock * 100, 2), "% - ", s, sep=""))
     crsp.clean$momentum[crsp.clean$PERMNO == s] <- trailing.compound.return(crsp.clean$RET[crsp.clean$PERMNO == s], 12, 2)
@@ -97,3 +93,4 @@ print(toc - tic) # time momentum/reversal calculations
 
 # save the results
 save(crsp.clean, file=paste(getwd(), "output/smr.Rdata", sep="/"))
+save(size, file=paste(getwd(), "output/size.Rdata", sep="/"))

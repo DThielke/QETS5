@@ -84,15 +84,19 @@ for (s in stocks) {
         dp[-1]) / at[-len])
 }
 
-# calculate book to market equity
+# load CRSP data
 load("data/smr.Rdata")
 names(crsp.clean) <- tolower(names(crsp.clean))
+# grab december data only
 crsp <- crsp.clean[crsp.clean$month == 12, c("permno", "year", "month", "prc", "shrout")]
+# calculate december market caps
 crsp$mktcap <- abs(crsp$prc) * crsp$shrout / 1000
+# merge the results back in
 comp <- merge(comp, crsp, by=c("permno", "year"))
+# calculate book to market equity ratios
 comp$btm <- comp$be / comp$mktcap
 comp$btm[comp$btm < 0] <- NA
 
 # save the results
-comp <- comp[,c("permno","year","month", "be","roa","agr","nsi","acc","mktcap","btm")]
-save(comp, file=paste(getwd(), file=paste(getwd(), "output/comp.Rdata", sep="/"))
+comp <- comp[,c("permno","year","month", "be","roa","agr","nsi","acc","btm","mktcap")]
+save(comp, file=paste(getwd(), "output/comp.Rdata", sep="/"))
