@@ -13,7 +13,7 @@ comp$mktcap <- NULL
 
 # prepare the returns data
 crsp.clean$pmonth <- ifelse(crsp.clean$month < 7, crsp.clean$month + 6, crsp.clean$month - 6)
-returns <- crsp.clean[, c('PERMNO', 'pyear', 'pmonth', 'year', 'month', 'mktcap', 'lagmktcap', 'momentum', 'reversal', 'RET', 'EXCHCD')]
+returns <- crsp.clean[, c('PERMNO', 'pyear', 'pmonth', 'mktcap', 'lagmktcap', 'momentum', 'reversal', 'RET', 'EXCHCD')]
 names(returns) <- tolower(names(returns))
 returns$size <- returns$mktcap
 returns$mom <- returns$momentum

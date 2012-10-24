@@ -4,19 +4,19 @@
 crsp <- read.csv("data/crsp.csv", header=TRUE)
 
 # separate YYYYMMDD dates into years, months and days
-crsp$year <- as.numeric(substr(as.character(crsp$DATE), 1, 4))
-crsp$month <- as.numeric(substr(as.character(crsp$DATE), 5, 6))
-crsp$day <- as.numeric(substr(as.character(crsp$DATE), 7, 8))
-crsp$DATE <- NULL
+crsp$year <- as.numeric(substr(as.character(crsp$date), 1, 4))
+crsp$month <- as.numeric(substr(as.character(crsp$date), 5, 6))
+crsp$day <- as.numeric(substr(as.character(crsp$date), 7, 8))
+crsp$date <- NULL
 
 # keep only stocks listed on NYSE (1), AMEX (2) or NASDAQ (3)
-crsp <- crsp[crsp$EXCHCD >= 1 & crsp$EXCHCD <= 3,]
+crsp <- crsp[crsp$EXCHCD >= 1 & crsp$EXCHCD <= 3 & !is.na(crsp$EXCHCD),]
 
 # keep only ordinary stocks (share code 11)
-crsp <- crsp[crsp$SHRCD == 11,]
+crsp <- crsp[crsp$SHRCD == 11 & !is.na(crsp.SHRCD),]
 
 # keep only non-financial stocks
-crsp <- crsp[crsp$SICCD < 6000 | crsp$SICCD > 6999,]
+crsp <- crsp[(crsp$SICCD < 6000 | crsp$SICCD > 6999) & !is.na(crsp$SICCD),]
 
 # remove any duplicate observations for a given stock in a given month
 crsp <- crsp[!duplicated(crsp[, c("month", "year", "PERMNO")]),]
@@ -47,7 +47,7 @@ crsp$SICCD <- NULL
 # remove observations with missing returns
 crsp <- crsp[!is.na(crsp$RET) & !is.na(crsp$RETX),]
 
-# calculate portfolio datescrsp
+# calculate portfolio dates
 crsp$pyear <- ifelse(crsp$month < 7, crsp$year - 1, crsp$year)
 crsp$pmonth <- ifelse(crsp$month < 7, crsp$month + 6, crsp$month - 6)
 
@@ -82,7 +82,7 @@ trailing.compound.return <- function(ret, from, to) {
 
 # calculate compound momentum and reversal returns
 tic <- proc.time()
-for (i in stocks) {
+for (i in nstock) {
     s <- stocks[i]
     print(paste(round(i / nstock * 100, 2), "% - ", s, sep=""))
     crsp.clean$momentum[crsp.clean$PERMNO == s] <- trailing.compound.return(crsp.clean$RET[crsp.clean$PERMNO == s], 12, 2)
