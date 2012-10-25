@@ -1,7 +1,12 @@
 # Homework 2: Working with CRSP Data
 
 # read the data
-crsp <- read.csv("data/crsp.csv", header=TRUE)
+crsp <- read.csv("data/crsp.10.csv", header=TRUE)
+
+if (is.null(crsp$date)) {
+    crsp$date <- crsp$DATE
+    crsp$DATE <- NULL
+}
 
 # separate YYYYMMDD dates into years, months and days
 crsp$year <- as.numeric(substr(as.character(crsp$date), 1, 4))
@@ -13,7 +18,7 @@ crsp$date <- NULL
 crsp <- crsp[crsp$EXCHCD >= 1 & crsp$EXCHCD <= 3 & !is.na(crsp$EXCHCD),]
 
 # keep only ordinary stocks (share code 11)
-crsp <- crsp[crsp$SHRCD == 11 & !is.na(crsp.SHRCD),]
+crsp <- crsp[crsp$SHRCD == 11 & !is.na(crsp$SHRCD),]
 
 # keep only non-financial stocks
 crsp <- crsp[(crsp$SICCD < 6000 | crsp$SICCD > 6999) & !is.na(crsp$SICCD),]
@@ -55,7 +60,7 @@ crsp$pmonth <- ifelse(crsp$month < 7, crsp$month + 6, crsp$month - 6)
 ## june only
 junes <- crsp$month == 6
 size <- data.frame(PERMNO=crsp$PERMNO[junes], pyear=crsp$year[junes], EXCHCD=crsp$EXCHCD[junes], mktcap=(crsp$SHROUT[junes] * abs(crsp$PRC[junes])))
-crsp <- merge(crsp, size, by=c("PERMNO", "pyear"))
+crsp <- merge(crsp, size[,c("PERMNO", "pyear", "mktcap")], by=c("PERMNO", "pyear"))
 
 # sort the cleaned data and remove unused variables
 crsp.clean <- crsp[order(crsp$PERMNO, crsp$year, crsp$month),]
@@ -64,7 +69,7 @@ rm(crsp, junes)
 # calculate lagged monthly market cap
 crsp.clean$lagmktcap <- c(NA, (crsp.clean$SHROUT * abs(crsp.clean$PRC))[-nrow(crsp.clean)])
 lags <- data.frame(permno=c(-1, diff(crsp.clean$PERMNO)), pyear=c(-1, diff(crsp.clean$pyear)), pmonth=c(-1, diff(crsp.clean$pmonth)))
-crsp.clean$lagmktcap[lags$permno != 0 & ((lags$pyear == 0 & lags$pmonth == 1) | lags$pyear == 1 & lags$pmonth == -11)] <- NA
+crsp.clean$lagmktcap[!(lags$permno == 0 & ((lags$pyear == 0 & lags$pmonth == 1) | (lags$pyear == 1 & lags$pmonth == -11)))] <- NA
 
 # given an array of returns, computes the compounded returns using a 
 # sliding window which runs from (t-from) to (t-to)
@@ -82,7 +87,7 @@ trailing.compound.return <- function(ret, from, to) {
 
 # calculate compound momentum and reversal returns
 tic <- proc.time()
-for (i in nstock) {
+for (i in 1:nstock) {
     s <- stocks[i]
     print(paste(round(i / nstock * 100, 2), "% - ", s, sep=""))
     crsp.clean$momentum[crsp.clean$PERMNO == s] <- trailing.compound.return(crsp.clean$RET[crsp.clean$PERMNO == s], 12, 2)

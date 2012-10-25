@@ -2,7 +2,7 @@
 # David Thielke, Dejing Huang, Michael Casini, Chris Penney
 
 # load the data and rename columns
-comp <- read.csv("data/crsp.csv", header=TRUE)
+comp <- read.csv("data/comp.10.csv", header=TRUE)
 names(comp) <- tolower(names(comp))
 names(comp)[2] <- "permno"
 names(comp)[4] <- "year"
@@ -85,7 +85,7 @@ for (s in stocks) {
 }
 
 # load CRSP data
-load("data/smr.Rdata")
+load("output/smr.Rdata")
 names(crsp.clean) <- tolower(names(crsp.clean))
 # grab december data only
 crsp <- crsp.clean[crsp.clean$month == 12, c("permno", "year", "month", "prc", "shrout")]

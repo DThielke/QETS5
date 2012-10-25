@@ -1,7 +1,7 @@
 # Homework 4
 
 # load the data
-load('data/comp.RData')
+load('output/comp.RData')
 load('output/smr.Rdata')
 load('output/size.Rdata')
 
@@ -28,7 +28,8 @@ compcrsp <- compcrsp[compcrsp$pyear %in% comp$pyear,]
 compcrsp <- compcrsp[order(compcrsp$permno, compcrsp$pyear, compcrsp$pmonth),]
 
 # accounting variables
-vars <- c('btm', 'roa', 'agr', 'nsi', 'acc', 'size', 'mom', 'rev')
+vars <- c('btm', 'size')
+#vars <- c('btm', 'roa', 'agr', 'nsi', 'acc', 'size', 'mom', 'rev')
 annual <- c(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE)
 
 # take log of net stock issues
