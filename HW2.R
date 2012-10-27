@@ -1,7 +1,7 @@
 # Homework 2: Working with CRSP Data
 
 # read the data
-crsp <- read.csv("data/crsp.10.csv", header=TRUE)
+crsp <- read.csv("data/crsp.csv", header=TRUE)
 
 if (is.null(crsp$date)) {
     crsp$date <- crsp$DATE
@@ -75,23 +75,32 @@ crsp.clean$lagmktcap[!(lags$permno == 0 & ((lags$pyear == 0 & lags$pmonth == 1) 
 # sliding window which runs from (t-from) to (t-to)
 trailing.compound.return <- function(ret, from, to) {
     nper <- length(ret)
+    
+    if (nper <= from)
+        return(NA)
+    
     # take advantage of cumsum to greatly speed up calculations
     cum.ret <- cumsum(log(1 + ret))
     compound.ret <- vector(mode="numeric", length=nper)
     compound.ret[1:from] <- NA
     compound.ret[from + 1] <- cum.ret[from - to + 1]
     # use indexing to subtract cumulative sums rather than looping
-    compound.ret[(from + 2):nper] <- cum.ret[(from - to + 2):(nper - to)] - cum.ret[1:(nper - from - 1)]
+    if (nper >= from + 2)
+        compound.ret[(from + 2):nper] <- cum.ret[(from - to + 2):(nper - to)] - cum.ret[1:(nper - from - 1)]
     return (exp(compound.ret) - 1)
 }
+
+options(warn=2)
 
 # calculate compound momentum and reversal returns
 tic <- proc.time()
 for (i in 1:nstock) {
     s <- stocks[i]
     print(paste(round(i / nstock * 100, 2), "% - ", s, sep=""))
-    crsp.clean$momentum[crsp.clean$PERMNO == s] <- trailing.compound.return(crsp.clean$RET[crsp.clean$PERMNO == s], 12, 2)
-    crsp.clean$reversal[crsp.clean$PERMNO == s] <- trailing.compound.return(crsp.clean$RET[crsp.clean$PERMNO == s], 60, 13)
+    rows <- crsp.clean$PERMNO == s
+    returns <- crsp.clean$RET[rows]
+    crsp.clean$momentum[rows] <- trailing.compound.return(returns, 12, 2)
+    crsp.clean$reversal[rows] <- trailing.compound.return(returns, 60, 13)
 }
 toc <- proc.time()
 print(toc - tic) # time momentum/reversal calculations

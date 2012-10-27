@@ -2,10 +2,10 @@
 # David Thielke, Dejing Huang, Michael Casini, Chris Penney
 
 # load the data and rename columns
-comp <- read.csv("data/comp.10.csv", header=TRUE)
+comp <- read.csv("data/comp.csv", header=TRUE)
 names(comp) <- tolower(names(comp))
 names(comp)[2] <- "permno"
-names(comp)[4] <- "year"
+names(comp)[5] <- "year"
 
 # use cusip to remove non-ordinary shares
 comp$cusip <- as.character(comp$cusip)
@@ -61,27 +61,33 @@ comp$be <- comp$at - comp$lt + best.available(comp$txditc) - best.available(cbin
 comp$roa <- (comp$ib - best.available(comp$dvp) + best.available(comp$txdi)) / comp$at
 
 stocks <- levels(factor(comp$permno))
-for (s in stocks) {
+nstock <- length(stocks)
+for (i in 1:nstock) {
+    s <- stocks[i]
+    print(paste(round(i / nstock * 100, 2), "% - ", s, sep=""))
+    
     stock <- comp$permno == s # row indices of stock
     len <- length(comp[stock,1]) # number of periods for this stock
     trim <- len - 1 # used to trim the last entry (since we are dealing with y-1 and y-2)
     
-    # calculate asset growth
-    at <- comp$at[stock]
-    comp$agr[stock][2:len] <- (diff(at) / at[-len])
-    
-    # calculate net stock issues
-    shares <- comp$csho[stock] * comp$adjex_f[stock]
-    comp$nsi[stock][2:len] <- (shares[-1] / shares[-len])
-    
-    # calculate accruals
-    dp <- comp$dp[stock]
-    comp$acc[stock][2:len] <- ((
-        diff(comp$act[stock]) - 
-        diff(comp$lct[stock]) - 
-        diff(comp$che[stock]) + 
-        diff(comp$dlc[stock]) - 
-        dp[-1]) / at[-len])
+    if (len > 1) {
+        # calculate asset growth
+        at <- comp$at[stock]
+        comp$agr[stock][2:len] <- (diff(at) / at[-len])
+        
+        # calculate net stock issues
+        shares <- comp$csho[stock] * comp$adjex_f[stock]
+        comp$nsi[stock][2:len] <- (shares[-1] / shares[-len])
+        
+        # calculate accruals
+        dp <- comp$dp[stock]
+        comp$acc[stock][2:len] <- ((
+            diff(comp$act[stock]) - 
+            diff(comp$lct[stock]) - 
+            diff(comp$che[stock]) + 
+            diff(comp$dlc[stock]) - 
+            dp[-1]) / at[-len])
+    }
 }
 
 # load CRSP data
