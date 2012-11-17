@@ -4,6 +4,19 @@
 load('output/comp.RData')
 load('output/smr.Rdata')
 load('output/size.Rdata')
+load('output/turnover.Rdata')
+
+# invert turnover
+turnover$turnover <- -1 * turnover$turnover
+
+# calculate lagged turnovers in portfolio time
+turnover$month <- turnover$month + 1
+turnover$year[turnover$month == 13] <- turnover$year[turnover$month == 13] + 1
+turnover$month[turnover$month == 13] <- 1
+turnover$pyear <- ifelse(turnover$month < 7, turnover$year - 1, turnover$year)
+turnover$pmonth <- ifelse(turnover$month < 7, turnover$month + 6, turnover$month - 6)
+turnover$year <- NULL
+turnover$month <- NULL
 
 # calculate pyear for accounting data
 comp$pyear <- comp$year + 1
@@ -27,9 +40,15 @@ compcrsp <- merge(comp, returns, by=c('permno', 'pyear'), all.y=TRUE)
 compcrsp <- compcrsp[compcrsp$pyear %in% comp$pyear,]
 compcrsp <- compcrsp[order(compcrsp$permno, compcrsp$pyear, compcrsp$pmonth),]
 
+# merge in the turnover data
+compcrsp <- merge(compcrsp, turnover, by=c('permno', 'pyear', 'pmonth'))
+compcrsp <- compcrsp[order(compcrsp$permno, compcrsp$pyear, compcrsp$pmonth),]
+
 # accounting variables
-vars <- c('btm', 'roa', 'agr', 'nsi', 'acc', 'size', 'mom', 'rev')
-annual <- c(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE)
+vars <- 'turnover'
+annual <- FALSE
+#vars <- c('btm', 'roa', 'agr', 'nsi', 'acc', 'size', 'mom', 'rev')
+#annual <- c(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE)
 
 # take log of net stock issues
 compcrsp$nsi <- log(compcrsp$nsi)
@@ -38,6 +57,9 @@ calc.breakpoints <- function(breakpoints, compcrsp, var, probabilities) {
     if (var == 'size') {
         rows <- size$EXCHCD==1 & size$pyear==breakpoints[1]
         return(quantile(size$mktcap[rows], probabilities, na.rm=TRUE))
+    } else if (var == 'turnover') {
+        rows <- compcrsp$exchcd==1 & compcrsp$pyear==breakpoints[1] & compcrsp$pmonth==breakpoints[2]
+        return(quantile(compcrsp[rows, var], probabilities, na.rm=TRUE))
     } else if (var == 'mom' | var == 'rev') {
         rows <- compcrsp$exchcd==1 & compcrsp$pyear==breakpoints[1] & compcrsp$pmonth==breakpoints[2]
         return(quantile(compcrsp[rows, var], probabilities, na.rm=TRUE))
@@ -47,10 +69,21 @@ calc.breakpoints <- function(breakpoints, compcrsp, var, probabilities) {
     }
 }
 
-# calculate breakpoints for BTM, ROA, asset growth, net stock issues, accruals, size, momentum and reversals
 compcrsp <- compcrsp[compcrsp$pyear >= 1963,]
 years <- min(compcrsp$pyear):max(compcrsp$pyear)
 min.year <- min(years)
+
+# calculate size breakpoints for filtering (50% quantile)
+size.bp <- data.frame(pyear=years)
+quantiles <- apply(size.bp, 1, calc.breakpoints, compcrsp, 'size', c(0.50))
+size.bp <- cbind(pyear=size.bp, q1.bp=quantiles)
+size.bp <- size.bp[!is.na(size.bp$q1.bp),]
+
+for (t in years) {
+    compcrsp <- compcrsp[!(compcrsp$pyear == t & compcrsp$size < size.bp$q1.bp[size.bp$pyear == t]),]
+}
+
+# calculate breakpoints for BTM, ROA, asset growth, net stock issues, accruals, size, momentum and reversals
 breakpoints <- list()
 for (i in 1:length(vars)) {
     var <- vars[i]
@@ -62,12 +95,16 @@ for (i in 1:length(vars)) {
     quantiles <- t(apply(breakpoints[[var]], 1, calc.breakpoints, compcrsp, var, c(0.2, 0.8)))
     colnames(quantiles) <- c('q1.bp', 'q5.bp')
     breakpoints[[var]] <- cbind(breakpoints[[var]], quantiles)
+    breakpoints[[var]] <- breakpoints[[var]][!is.na(breakpoints[[var]]$q1.bp),]
+    breakpoints[[var]] <- breakpoints[[var]][!is.na(breakpoints[[var]]$q5.bp),]
 }
 
 calc.anom <- function(anom, compcrsp, var) {
     date.indices <- compcrsp$pyear == anom[1] & compcrsp$pmonth == anom[2]
+    #size.indices <- compcrsp$size < size.bp$q1.bp[size.bp$pyear == anom[1]]
     q1.comb.indices <- which(date.indices & compcrsp[var] <= anom[3])
     q5.comb.indices <- which(date.indices & compcrsp[var] >= anom[4])
+    print(paste(length(q1.comb.indices), length(q5.comb.indices)))
     q1.weights <- compcrsp$lagmktcap[q1.comb.indices]
     q5.weights <- compcrsp$lagmktcap[q5.comb.indices]
     q1.returns <- compcrsp$ret[q1.comb.indices]
@@ -86,8 +123,7 @@ for (i in 1:length(vars)) {
     var <- vars[i]
     print(var)
     
-    anom.var <- data.frame(pyear=head(rep(years, each=12), nmonth), 
-                           pmonth=head(rep(1:12, times=length(years)), nmonth))
+    anom.var <- data.frame(pyear=head(rep(years, each=12), nmonth), pmonth=head(rep(1:12, times=length(years)), nmonth))
     
     if (annual[i]) {
         anom.var <- merge(anom.var, breakpoints[[var]], by=c('pyear'))
@@ -169,3 +205,6 @@ for (var in vars) {
 save(anom, file=paste(getwd(), "output/anom.Rdata", sep="/"))
 save(capm, file=paste(getwd(), "output/capm.RData", sep="/"))
 save(ff, file=paste(getwd(), "output/ff.Rdata", sep="/"))
+
+plot(capm.zc.ew$turnover[,1], type='l')
+plot(cumprod(1+anom$turnover$zcvwret), type='l')

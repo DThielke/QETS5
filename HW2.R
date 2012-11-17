@@ -71,6 +71,11 @@ crsp.clean$lagmktcap <- c(NA, (crsp.clean$SHROUT * abs(crsp.clean$PRC))[-nrow(cr
 lags <- data.frame(permno=c(-1, diff(crsp.clean$PERMNO)), pyear=c(-1, diff(crsp.clean$pyear)), pmonth=c(-1, diff(crsp.clean$pmonth)))
 crsp.clean$lagmktcap[!(lags$permno == 0 & ((lags$pyear == 0 & lags$pmonth == 1) | (lags$pyear == 1 & lags$pmonth == -11)))] <- NA
 
+# calculate % changes in trading volume
+crsp.clean$dvol <- c(NA, diff(crsp.clean$VOL) / crsp.clean$VOL[-nrow(crsp.clean)])
+crsp.clean$dvol[which(crsp.clean$VOL == -99) + 1] <- 0
+crsp.clean$dvol[!(lags$permno == 0 & ((lags$pyear == 0 & lags$pmonth == 1) | (lags$pyear == 1 & lags$pmonth == -11)))] <- 0
+
 # given an array of returns, computes the compounded returns using a 
 # sliding window which runs from (t-from) to (t-to)
 trailing.compound.return <- function(ret, from, to) {
@@ -92,6 +97,11 @@ trailing.compound.return <- function(ret, from, to) {
 
 options(warn=2)
 
+crsp.clean$momentum = 0
+crsp.clean$reversal = 0
+crsp.clean$volmomentum = 0
+crsp.clean$volreversal = 0
+
 # calculate compound momentum and reversal returns
 tic <- proc.time()
 for (i in 1:nstock) {
@@ -99,8 +109,11 @@ for (i in 1:nstock) {
     print(paste(round(i / nstock * 100, 2), "% - ", s, sep=""))
     rows <- crsp.clean$PERMNO == s
     returns <- crsp.clean$RET[rows]
+    dvols <- crsp.clean$dvol[rows]
     crsp.clean$momentum[rows] <- trailing.compound.return(returns, 12, 2)
     crsp.clean$reversal[rows] <- trailing.compound.return(returns, 60, 13)
+    crsp.clean$volmomentum[rows] <- trailing.compound.return(dvols, 12, 2)
+    crsp.clean$volreversal[rows] <- trailing.compound.return(dvols, 60, 13)
 }
 toc <- proc.time()
 print(toc - tic) # time momentum/reversal calculations
